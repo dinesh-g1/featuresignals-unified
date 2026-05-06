@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: router-config
+  namespace: featuresignals
+data:
+  config.yaml: |
+    router:
+      domain: featuresignals.com
+      email: admin@featuresignals.com
+      tls:
+        cache_dir: /data/certs
+        port: 443
+      dns:
+        enabled: false
+        port: 53
+      domains:
+        - name: featuresignals.com
+          type: static
+          root: /data/www/website
+        - name: docs.featuresignals.com
+          type: static
+          root: /data/www/docs
+        - name: api.featuresignals.com
+          type: proxy
+          target: http://featuresignals-server:8080
+          rate_limit: 1000/min
+        - name: app.featuresignals.com
+          type: proxy
+          target: http://featuresignals-dashboard:3000
+          rate_limit: 100/min
+        - name: signoz.featuresignals.com
+          type: proxy
+          target: http://signoz.observability.svc.cluster.local:8080
+          rate_limit: 10000/min
+          auth: ops
+        - name: ops.featuresignals.com
+          type: proxy
+          target: http://ops-portal.ops-portal.svc.cluster.local:8082
+          rate_limit: 100/min
+          auth: ops
+      rate_limit:
+        default: 1000/min
+        burst: 200
+        window: 60s
+      cluster:
+        name: eu-001
+        region: eu
+        public_ip: "REPLACE_WITH_PUBLIC_IP"
+      peer_clusters: []
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: global-router
+  namespace: featuresignals
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: global-router
+  template:
+    metadata:
+      labels:
+        app: global-router
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: global-router
+          image: ghcr.io/dinesh-g1/featuresignals-global-router:latest # Image tag injected by CI
+          env:
+            - name: CONFIG_PATH
+              value: /etc/router/config.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /etc/router
+            - name: certs
+              mountPath: /data/certs
+            - name: www
+              mountPath: /data/www
+          resources:
+            limits:
+              cpu: "500m"
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: router-config
+        - name: certs
+          hostPath:
+            path: /data/certs
+            type: DirectoryOrCreate
+        - name: www
+          hostPath:
+            path: /data/www
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: global-router
+  namespace: featuresignals
+spec:
+  type: NodePort
+  selector:
+    app: global-router
+  ports:
+    - port: 443
+      targetPort: 443
+      name: https
+    - port: 80
+      targetPort: 80
+      name: http

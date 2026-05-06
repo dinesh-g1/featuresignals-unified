@@ -1,17 +1,25 @@
-# deps
+# Dependencies
 node_modules/
-.pnp
-.pnp.js
 
-# build
+# Build outputs
 .next/
 out/
 dist/
+build/
+.astro/
+.docusaurus/
 
-# env
+# Environment variables
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!**/.env.example
+!.env.production.example
+!**/.env.*.example
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # IDE
 .idea/
@@ -19,14 +27,99 @@ dist/
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
-
-# debug
+# Debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+.playwright-mcp/
 
-# turbo
-.turbo/
+# Go binaries & coverage
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/server/bin/
+/server/server
+/server/relay
+/server/stalescan
+/server/genspec
+/server/licensegen
+*.out
+
+# Build artifacts — never commit compiled binaries
+server/fs-server-linux
+deploy/global-router/global-router
+ops-portal/ops-portal
+
+# Generated documentation (build artifacts)
+server/internal/api/docs/swagger.html
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+.venv/
+
+# Private documentation and sensitive business data (compliance, strategy, operations)
+# These files contain confidential information and must not be pushed to public repositories
+private/
+.internal/
+
+# LLM Wiki — private business knowledge (pricing, competitive intel, customers, roadmap)
+# gitignore so they never leak to public repo
+product/wiki/private/
+
+# LLM Wiki — internal ops knowledge (infra secrets, runbooks, incidents, compliance gaps)
+# Encrypted via git-crypt. This entry ensures unencrypted duplicates are ignored.
+product/wiki/internal/
+
+# Claude local settings
+.claude/settings.local.json
+
+# Screenshots and browser test images — must never be committed
+*.png
+
+# Agentic prompt planning files
+PHASE1_PLAN.md
+FINAL_PROMPT.md
+
+# Local developer config (VPS host, etc.)
+.featuresignals/
+
+# Misc
+*.pem
+*.tsbuildinfo
+.vercel
+coverage/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+sdks/java/target/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+.qwen/
+.zed/
+
+# Ops portal sensitive docs (internal procedures, infra details)
+ops/docs/*.md
+
+# Ops Portal
+ops-portal/ops-portal
+ops-portal/*.db
+ops-portal/*.db-*
+/tmp/*
+testcluster

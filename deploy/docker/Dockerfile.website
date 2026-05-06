@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# Layer 1: Install dependencies (cached unless package*.json change)
+COPY package*.json ./
+RUN npm ci
+
+# Layer 2: Build (uses cached node_modules)
+COPY src/ src/
+COPY public/ public/
+COPY next.config.* ./
+COPY tsconfig.json ./
+COPY postcss.config.* ./
+COPY .dockerignore ./
+RUN npm run build && npm cache clean --force
+
+FROM alpine:3.19
+
+# Copy built static files from builder stage to a staging directory
+COPY --from=builder /app/out /src-website
+
+# Ensure /srv/website directory exists in the image
+RUN mkdir -p /srv/website
+
+# The actual copy happens at runtime (CMD) because:
+# - Named volumes are mounted at container startup
+# - Files copied during BUILD time to /srv/website would be hidden by the volume mount
+# - So we copy from /src-website (in image) to /srv/website (volume mount) at runtime
+# Using cp -a to handle all files including hidden ones reliably
+
+# One-shot builder: clears old files, copies new ones from image to volume, then exits
+CMD ["sh", "-c", "echo '===> Copying website files to volume...' && rm -rf /srv/website/* 2>/dev/null || true && cp -a /src-website/. /srv/website/ && echo '===> Website files copied successfully:' && find /srv/website/ -type f | wc -l && echo '===> Website build container exiting...' && exit 0"]

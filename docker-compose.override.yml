@@ -1,0 +1,66 @@
+# Local development overrides.
+# Automatically applied by `docker compose up` (Docker Compose convention).
+# Usage: make local-up  (or: docker compose up --build -d)
+#
+# Reads from .env.local when present. Copy deploy/local/.env.local.example to
+# .env.local and adjust values as needed.
+#
+# Optional profiles:
+#   --profile seed   : Pre-load demo data (org, project, flags, environments)
+
+services:
+  postgres:
+    env_file:
+      - path: .env.local
+        required: false
+    ports:
+      - "${DB_PORT:-5432}:5432"
+
+  server:
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-cloud}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-none}
+      ZEPTOMAIL_TOKEN: ${ZEPTOMAIL_TOKEN:-}
+      ZEPTOMAIL_FROM_EMAIL: ${ZEPTOMAIL_FROM_EMAIL:-noreply@featuresignals.com}
+      ZEPTOMAIL_FROM_NAME: ${ZEPTOMAIL_FROM_NAME:-FeatureSignals (Local)}
+      ZEPTOMAIL_BASE_URL: ${ZEPTOMAIL_BASE_URL:-https://api.zeptomail.in}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      DASHBOARD_URL: ${DASHBOARD_URL:-http://localhost:3000}
+      CLUSTER_NAME: ${CLUSTER_NAME:-local-dev}
+      ROUTER_DOMAIN: ${ROUTER_DOMAIN:-localhost}
+      ROUTER_EMAIL: ${ROUTER_EMAIL:-dev@localhost}
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-featuresignals-api-local}
+      OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-false}
+      OTEL_METRICS_ENABLED: ${OTEL_METRICS_ENABLED:-false}
+
+  dashboard:
+    env_file:
+      - path: .env.local
+        required: false
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+      WATCHPACK_POLLING: "true"
+
+  seed:
+    image: postgres:16-alpine
+    depends_on:
+      server:
+        condition: service_healthy
+    volumes:
+      - ./server/scripts/seed.sql:/seed.sql:ro
+    entrypoint:
+      [
+        "sh",
+        "-c",
+        "PGPASSWORD=fsdev psql -h postgres -U fs -d featuresignals -f /seed.sql",
+      ]
+    profiles: ["seed"]

@@ -1,0 +1,162 @@
+# Security Scan — Secrets, Vulnerabilities & SAST
+#
+# Runs on every push to main and every pull request targeting main.
+# All jobs run in parallel. Critical checks (gitleaks, govulncheck, npm-audit)
+# fail fast to block vulnerable code from reaching main.
+#
+# Required permissions:
+#   security-events: write — needed by CodeQL to upload SARIF results
+
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: security-scan-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ── Gitleaks — Secret Detection ──────────────────────────────────────────
+
+  gitleaks:
+    name: Gitleaks — Secret Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  # ── Go Vulnerability Scanning ────────────────────────────────────────────
+
+  govulncheck:
+    name: Go Vulnerability Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck (server)
+        run: govulncheck ./...
+        working-directory: server
+
+      - name: Run govulncheck (global-router)
+        run: govulncheck ./...
+        working-directory: deploy/global-router
+
+  # ── npm Audit — Dashboard, Website & Docs ────────────────────────────────
+
+  npm-audit:
+    name: npm Audit — JS Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: true
+      matrix:
+        workspace:
+          - dashboard
+          - website
+          - docs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install & audit ${{ matrix.workspace }}
+        run: |
+          npm ci
+          npm audit --audit-level=high
+        working-directory: ${{ matrix.workspace }}
+
+  # ── CodeQL — SAST Analysis ───────────────────────────────────────────────
+
+  codeql:
+    name: CodeQL — SAST Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go, javascript-typescript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # ── CodeQL Alert Gate — Block new critical/high severity alerts ──────────
+  # This gate queries the GitHub Code Scanning API for open alerts on the
+  # current ref. If any critical or high severity alerts exist, the job fails.
+  # Run this in PRs to prevent merging vulns; informational on main pushes.
+  codeql-gate:
+    name: CodeQL Alert Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [codeql]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check CodeQL alert status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: alerts } = await github.rest.codeScanning.listAlertsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.payload.pull_request.head.ref,
+              state: 'open',
+              severity: 'critical,high,error'
+            });
+            if (alerts.length > 0) {
+              const bySeverity = {};
+              for (const a of alerts) {
+                const sev = a.rule.security_severity_level || a.rule.severity || 'unknown';
+                bySeverity[sev] = (bySeverity[sev] || 0) + 1;
+              }
+              const summary = Object.entries(bySeverity).map(([s, c]) => `${c} ${s}`).join(', ');
+              core.setFailed(
+                `CodeQL found ${alerts.length} open alert(s) with severity critical/high: ${summary}. ` +
+                `Fix them before merging. See https://github.com/${context.repo.owner}/${context.repo.repo}/security/code-scanning`
+              );
+            } else {
+              core.info('✅ No critical or high severity CodeQL alerts found.');
+            }
+
+  # ── Dependency Review — PR Dependency Audit ──────────────────────────────
+
+  dependency-review:
+    name: Dependency Review — PR Audit
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Review dependencies
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

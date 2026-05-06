@@ -1,0 +1,329 @@
+package handlers
+
+import (
+	// "context"
+	"encoding/json"
+	"net/http"
+	// "time"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/featuresignals/server/internal/api/dto"
+	"github.com/featuresignals/server/internal/api/middleware"
+	"github.com/featuresignals/server/internal/auth"
+	"github.com/featuresignals/server/internal/domain"
+	"github.com/featuresignals/server/internal/httputil"
+)
+
+type teamStore interface {
+	domain.OrgMemberStore
+	domain.UserReader
+	domain.UserWriter
+	domain.EnvPermissionStore
+	domain.AuditWriter
+}
+
+type TeamHandler struct {
+	store        teamStore
+	jwtMgr       auth.TokenManager
+	emitter      domain.EventEmitter
+	lifecycle    LifecycleSender
+	dashboardURL string
+}
+
+func NewTeamHandler(
+	store teamStore,
+	jwtMgr auth.TokenManager,
+	emitter domain.EventEmitter,
+	lifecycle LifecycleSender,
+	dashboardURL string,
+) *TeamHandler {
+	if emitter == nil {
+		emitter = NoopEmitter()
+	}
+	if lifecycle == nil {
+		lifecycle = NoopLifecycle()
+	}
+	return &TeamHandler{
+		store:        store,
+		jwtMgr:       jwtMgr,
+		emitter:      emitter,
+		lifecycle:    lifecycle,
+		dashboardURL: dashboardURL,
+	}
+}
+
+// List returns all org members with user details.
+func (h *TeamHandler) List(w http.ResponseWriter, r *http.Request) {
+	logger := httputil.LoggerFromContext(r.Context())
+	orgID := middleware.GetOrgID(r.Context())
+
+	members, err := h.store.ListOrgMembers(r.Context(), orgID)
+	if err != nil {
+		logger.Error("failed to list members", "error", err)
+		httputil.Error(w, http.StatusInternalServerError, "failed to list members")
+		return
+	}
+
+	resp := make([]dto.MemberResponse, 0, len(members))
+	for _, m := range members {
+		user, err := h.store.GetUserByID(r.Context(), m.UserID)
+		if err != nil {
+			logger.Warn("failed to get user for member", "error", err, "user_id", m.UserID, "member_id", m.ID)
+			continue
+		}
+		resp = append(resp, dto.MemberResponse{
+			ID:    m.ID,
+			OrgID: m.OrgID,
+			Role:  m.Role,
+			Email: user.Email,
+			Name:  user.Name,
+		})
+	}
+
+	p := dto.ParsePagination(r)
+	page, total := dto.Paginate(resp, p)
+	httputil.JSON(w, http.StatusOK, dto.NewPaginatedResponse(page, total, p.Limit, p.Offset))
+}
+
+type InviteRequest struct {
+	Email string      `json:"email"`
+	Role  domain.Role `json:"role"`
+}
+
+// Invite adds a user to the organization. If the user doesn't exist yet,
+// a stub account is created with a random password (they must reset it).
+func (h *TeamHandler) Invite(w http.ResponseWriter, r *http.Request) {
+	logger := httputil.LoggerFromContext(r.Context())
+	orgID := middleware.GetOrgID(r.Context())
+
+	var req InviteRequest
+	if err := httputil.DecodeJSON(r, &req); err != nil {
+		httputil.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Email == "" {
+		httputil.Error(w, http.StatusBadRequest, "email is required")
+		return
+	}
+	if !validateEmail(req.Email) {
+		httputil.Error(w, http.StatusBadRequest, "invalid email format")
+		return
+	}
+	if req.Role == "" {
+		req.Role = domain.RoleDeveloper
+	}
+	if req.Role != domain.RoleOwner && req.Role != domain.RoleAdmin &&
+		req.Role != domain.RoleDeveloper && req.Role != domain.RoleViewer {
+		httputil.Error(w, http.StatusBadRequest, "invalid role")
+		return
+	}
+
+	user, err := h.store.GetUserByEmail(r.Context(), req.Email)
+	if err != nil {
+		hash, _ := auth.HashPassword("changeme-invited")
+		user = &domain.User{
+			Email:        req.Email,
+			Name:         req.Email,
+			PasswordHash: hash,
+		}
+		if err := h.store.CreateUser(r.Context(), user); err != nil {
+			logger.Warn("failed to create invited user", "error", err, "email", req.Email)
+			httputil.Error(w, http.StatusConflict, "failed to create user")
+			return
+		}
+	}
+
+	existing, _ := h.store.GetOrgMember(r.Context(), orgID, user.ID)
+	if existing != nil {
+		httputil.Error(w, http.StatusConflict, "user is already a member of this organization")
+		return
+	}
+
+	member := &domain.OrgMember{
+		OrgID:  orgID,
+		UserID: user.ID,
+		Role:   req.Role,
+	}
+	if err := h.store.AddOrgMember(r.Context(), member); err != nil {
+		logger.Error("failed to add member", "error", err, "email", req.Email)
+		httputil.Error(w, http.StatusInternalServerError, "failed to add member")
+		return
+	}
+
+	userID := middleware.GetUserID(r.Context())
+	meta, _ := json.Marshal(map[string]string{"email": req.Email, "role": string(req.Role)})
+	h.store.CreateAuditEntry(r.Context(), &domain.AuditEntry{
+		OrgID: orgID, ActorID: &userID, ActorType: "user",
+		Action: "member.invited", ResourceType: "member", ResourceID: &member.ID,
+		Metadata: meta, IPAddress: r.RemoteAddr, UserAgent: r.UserAgent(),
+	})
+
+	h.emitter.Emit(r.Context(), domain.ProductEvent{
+		Event:    domain.EventMemberInvited,
+		Category: domain.EventCategoryTeam,
+		UserID:   userID,
+		OrgID:    orgID,
+		Properties: eventProps(map[string]string{
+			"invited_email": req.Email,
+			"role":          string(req.Role),
+		}),
+	})
+
+	// XXX(dr, 2026-05-02): Team invite email temporarily disabled.
+	// Only signup, login, and password reset emails are active.
+	//
+	// go func() {
+	// 	sendCtx, sendCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// 	defer sendCancel()
+	// 	_ = h.lifecycle.Send(sendCtx, user.ID, domain.EmailMessage{
+	// 		To:       req.Email,
+	// 		ToName:   user.Name,
+	// 		Template: domain.TemplateTeamInvite,
+	// 		Subject:  "You've been invited to FeatureSignals",
+	// 		Data: map[string]string{
+	// 			"ToName":       user.Name,
+	// 			"OrgName":      orgID,
+	// 			"Role":         string(req.Role),
+	// 			"DashboardURL": h.dashboardURL,
+	// 		},
+	// 	})
+	// }()
+
+	httputil.JSON(w, http.StatusCreated, dto.MemberResponse{
+		ID:    member.ID,
+		OrgID: orgID,
+		Role:  req.Role,
+		Email: user.Email,
+		Name:  user.Name,
+	})
+}
+
+type UpdateRoleRequest struct {
+	Role domain.Role `json:"role"`
+}
+
+// UpdateRole changes a member's role within the organization.
+func (h *TeamHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
+	logger := httputil.LoggerFromContext(r.Context())
+	memberID := chi.URLParam(r, "memberID")
+
+	var req UpdateRoleRequest
+	if err := httputil.DecodeJSON(r, &req); err != nil {
+		httputil.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Role != domain.RoleOwner && req.Role != domain.RoleAdmin &&
+		req.Role != domain.RoleDeveloper && req.Role != domain.RoleViewer {
+		httputil.Error(w, http.StatusBadRequest, "invalid role")
+		return
+	}
+
+	if err := h.store.UpdateOrgMemberRole(r.Context(), memberID, req.Role); err != nil {
+		logger.Warn("failed to update member role", "error", err, "member_id", memberID)
+		httputil.Error(w, http.StatusNotFound, "member not found")
+		return
+	}
+
+	orgID := middleware.GetOrgID(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	meta, _ := json.Marshal(map[string]string{"new_role": string(req.Role)})
+	h.store.CreateAuditEntry(r.Context(), &domain.AuditEntry{
+		OrgID: orgID, ActorID: &userID, ActorType: "user",
+		Action: "member.role_changed", ResourceType: "member", ResourceID: &memberID,
+		Metadata: meta, IPAddress: r.RemoteAddr, UserAgent: r.UserAgent(),
+	})
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Remove deletes a member from the organization.
+func (h *TeamHandler) Remove(w http.ResponseWriter, r *http.Request) {
+	logger := httputil.LoggerFromContext(r.Context())
+	memberID := chi.URLParam(r, "memberID")
+	callerID := middleware.GetUserID(r.Context())
+
+	member, err := h.store.GetOrgMemberByID(r.Context(), memberID)
+	if err != nil {
+		logger.Warn("failed to get member", "error", err, "member_id", memberID)
+		httputil.Error(w, http.StatusNotFound, "member not found")
+		return
+	}
+
+	if member.UserID == callerID {
+		httputil.Error(w, http.StatusBadRequest, "cannot remove yourself")
+		return
+	}
+
+	if err := h.store.RemoveOrgMember(r.Context(), memberID); err != nil {
+		logger.Error("failed to remove member", "error", err, "member_id", memberID)
+		httputil.Error(w, http.StatusInternalServerError, "failed to remove member")
+		return
+	}
+
+	orgID := middleware.GetOrgID(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	h.store.CreateAuditEntry(r.Context(), &domain.AuditEntry{
+		OrgID: orgID, ActorID: &userID, ActorType: "user",
+		Action: "member.removed", ResourceType: "member", ResourceID: &memberID,
+		IPAddress: r.RemoteAddr, UserAgent: r.UserAgent(),
+	})
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ListPermissions returns the per-environment permissions for a member.
+func (h *TeamHandler) ListPermissions(w http.ResponseWriter, r *http.Request) {
+	logger := httputil.LoggerFromContext(r.Context())
+	memberID := chi.URLParam(r, "memberID")
+
+	perms, err := h.store.ListEnvPermissions(r.Context(), memberID)
+	if err != nil {
+		logger.Error("failed to list permissions", "error", err, "member_id", memberID)
+		httputil.Error(w, http.StatusInternalServerError, "failed to list permissions")
+		return
+	}
+
+	httputil.JSON(w, http.StatusOK, perms)
+}
+
+type UpdatePermissionsRequest struct {
+	Permissions []domain.EnvPermission `json:"permissions"`
+}
+
+// UpdatePermissions replaces the per-environment permissions for a member.
+func (h *TeamHandler) UpdatePermissions(w http.ResponseWriter, r *http.Request) {
+	logger := httputil.LoggerFromContext(r.Context())
+	memberID := chi.URLParam(r, "memberID")
+
+	var req UpdatePermissionsRequest
+	if err := httputil.DecodeJSON(r, &req); err != nil {
+		httputil.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	for i := range req.Permissions {
+		req.Permissions[i].MemberID = memberID
+		if err := h.store.UpsertEnvPermission(r.Context(), &req.Permissions[i]); err != nil {
+			logger.Error("failed to upsert environment permission", "error", err, "member_id", memberID)
+			httputil.Error(w, http.StatusInternalServerError, "failed to update permissions")
+			return
+		}
+	}
+
+	perms, err := h.store.ListEnvPermissions(r.Context(), memberID)
+	if err != nil {
+		logger.Warn("failed to re-read permissions after update", "error", err, "member_id", memberID)
+	}
+
+	orgID := middleware.GetOrgID(r.Context())
+	userID := middleware.GetUserID(r.Context())
+	afterState, _ := json.Marshal(perms)
+	h.store.CreateAuditEntry(r.Context(), &domain.AuditEntry{
+		OrgID: orgID, ActorID: &userID, ActorType: "user",
+		Action: "member.permissions_updated", ResourceType: "member", ResourceID: &memberID,
+		AfterState: afterState, IPAddress: r.RemoteAddr, UserAgent: r.UserAgent(),
+	})
+
+	httputil.JSON(w, http.StatusOK, perms)
+}

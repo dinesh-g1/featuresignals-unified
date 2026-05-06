@@ -1,0 +1,259 @@
+# CD — Deploy to K3s Cluster
+#
+# Runs on the self-hosted GitHub Actions runner inside the K3s cluster.
+# The runner user has kubectl configured at ~/.kube/config (set up by cloud-init).
+#
+# Usage:
+#   gh workflow run cd.yml -f version=<commit-sha> -f services=dashboard
+#   gh workflow run cd.yml -f version=<commit-sha> -f services=all
+#   gh workflow run cd.yml -f version=<commit-sha> -f services=server,dashboard
+#
+# Required secrets (set in GitHub Settings → Secrets and variables → Actions):
+#   GHCR_TOKEN       — GitHub PAT with read:packages
+#   ZEPTOMAIL_TOKEN  — ZeptoMail API token (Zoho-enczapikey ...)
+#   JWT_SECRET       — JWT signing secret
+#   POSTGRES_PASSWORD — PostgreSQL superuser password
+
+name: CD - Deploy to K3s
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Image tag (commit SHA) to deploy. Must exist in GHCR."
+        required: true
+        type: string
+      services:
+        description: "Services to deploy: server, dashboard, global-router (comma-separated) or 'all'"
+        required: true
+        default: "all"
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NS: featuresignals
+  REGISTRY: ghcr.io/dinesh-g1
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: [self-hosted, Linux, X64]
+    env:
+      KUBECONFIG: /home/runner/.kube/config
+      PATH: /usr/local/bin:/usr/local/sbin:/usr/bin:/bin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version (short SHA → full SHA)
+        id: version
+        run: |
+          FULL=$(git rev-parse ${{ inputs.version }})
+          echo "full=$FULL" >> $GITHUB_OUTPUT
+          echo "Resolved: ${{ inputs.version }} → $FULL"
+
+
+      - name: Resolve services
+        id: resolve
+        run: |
+          INPUT="${{ inputs.services }}"
+          if [ "$INPUT" = "all" ]; then
+            echo "services=server,dashboard,global-router" >> $GITHUB_OUTPUT
+          else
+            echo "services=$INPUT" >> $GITHUB_OUTPUT
+          fi
+          echo "Resolved: $INPUT"
+
+      - name: Should deploy server?
+        id: deploy_server
+        run: echo "enabled=$([[ ",${{ steps.resolve.outputs.services }}," == *",server,"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+
+      - name: Should deploy dashboard?
+        id: deploy_dashboard
+        run: echo "enabled=$([[ ",${{ steps.resolve.outputs.services }}," == *",dashboard,"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+
+      - name: Should deploy global-router?
+        id: deploy_router
+        run: echo "enabled=$([[ ",${{ steps.resolve.outputs.services }}," == *",global-router,"* ]] && echo true || echo false)" >> $GITHUB_OUTPUT
+
+      # ── Preflight ───────────────────────────────────────────────
+      - name: Preflight — cluster health
+        run: |
+          echo "=== Node status ==="
+          kubectl get nodes -o wide
+          echo ""
+          echo "=== Node resource usage ==="
+          kubectl top nodes 2>/dev/null || echo "(metrics-server may not be running)"
+          echo ""
+          echo "=== Node capacity & allocatable ==="
+          kubectl describe node 2>/dev/null | grep -A8 "Capacity:" | head -20
+          echo ""
+          echo "=== Current pods ==="
+          kubectl get pods -n ${{ env.NS }} -o wide
+          echo ""
+          echo "=== Current deployments ==="
+          kubectl get deployments -n ${{ env.NS }}
+
+      # ── Auth ────────────────────────────────────────────────────
+      - name: Update GHCR pull secret
+        run: |
+          kubectl delete secret ghcr-pull -n ${{ env.NS }} --ignore-not-found
+          kubectl create secret docker-registry ghcr-pull \
+            --docker-server=ghcr.io \
+            --docker-username=dinesh-g1 \
+            --docker-password="${{ secrets.GHCR_TOKEN }}" \
+            --namespace=${{ env.NS }}
+          echo "✅ GHCR pull secret updated"
+
+      - name: Sync ZeptoMail secret from GitHub Secrets
+        run: |
+          kubectl delete secret zeptomail-secret -n ${{ env.NS }} --ignore-not-found
+          kubectl create secret generic zeptomail-secret \
+            --from-literal=zeptomail-token="${{ secrets.ZEPTOMAIL_TOKEN }}" \
+            --namespace=${{ env.NS }}
+          echo "✅ ZeptoMail secret synced"
+
+      - name: Apply K8s manifests
+        run: |
+          kubectl apply -f ${{ github.workspace }}/deploy/k8s/server.yaml
+          echo "✅ K8s manifests applied"
+
+      # ── Helper: deploy a service with debug ─────────────────────
+      # Each deployment step now follows this pattern:
+      #   1. Show current state
+      #   2. Force-delete stuck pods
+      #   3. Update image
+      #   4. Wait a few seconds for new pod to be created
+      #   5. Show debug: pod status, describe, logs, events
+      #   6. Wait for rollout
+
+      # ── Server ──────────────────────────────────────────────────
+      - name: Deploy server
+        if: steps.deploy_server.outputs.enabled == 'true'
+        run: |
+          APP=server
+          echo "╔══════════════════════════════════════════════════════╗"
+          echo "║  Deploying: $APP"
+          echo "╚══════════════════════════════════════════════════════╝"
+
+          echo "=== Pre-deploy pod status ==="
+          kubectl get pods -n ${{ env.NS }} -l app=$APP -o wide 2>/dev/null || echo "No existing pods"
+
+          echo "=== Force-deleting stuck pods ==="
+          kubectl delete pod -n ${{ env.NS }} -l app=$APP --force --grace-period=0 2>/dev/null || true
+          sleep 5
+
+          echo "=== Setting image ==="
+          kubectl set image deployment/$APP \
+            -n ${{ env.NS }} \
+            $APP=${{ env.REGISTRY }}/featuresignals-$APP:${{ steps.version.outputs.full }}
+
+          sleep 10
+
+          echo "=== Post-deploy pod status ==="
+          kubectl get pods -n ${{ env.NS }} -l app=$APP -o wide
+
+          echo "=== Pod describe (last 40 lines) ==="
+          kubectl describe pod -n ${{ env.NS }} -l app=$APP 2>&1 | tail -40
+
+          echo "=== Pod logs (last 30 lines, all containers) ==="
+          kubectl logs -n ${{ env.NS }} -l app=$APP --all-containers=true --tail=30 2>/dev/null || echo "(no logs yet)"
+
+          echo "=== Recent events ==="
+          kubectl get events -n ${{ env.NS }} --sort-by='.lastTimestamp' 2>/dev/null | tail -15
+
+          echo "=== Waiting for rollout ==="
+          kubectl rollout status deployment/$APP -n ${{ env.NS }} --timeout=240s
+          echo "✅ Server deployed"
+
+      # ── Dashboard ───────────────────────────────────────────────
+      - name: Deploy dashboard
+        if: steps.deploy_dashboard.outputs.enabled == 'true'
+        run: |
+          APP=dashboard
+          echo "╔══════════════════════════════════════════════════════╗"
+          echo "║  Deploying: $APP"
+          echo "╚══════════════════════════════════════════════════════╝"
+
+          echo "=== Pre-deploy pod status ==="
+          kubectl get pods -n ${{ env.NS }} -l app=$APP -o wide 2>/dev/null || echo "No existing pods"
+
+          echo "=== Force-deleting stuck pods ==="
+          kubectl delete pod -n ${{ env.NS }} -l app=$APP --force --grace-period=0 2>/dev/null || true
+          sleep 5
+
+          echo "=== Setting image ==="
+          kubectl set image deployment/$APP \
+            -n ${{ env.NS }} \
+            $APP=${{ env.REGISTRY }}/featuresignals-$APP:${{ steps.version.outputs.full }}
+
+          sleep 10
+
+          echo "=== Post-deploy pod status ==="
+          kubectl get pods -n ${{ env.NS }} -l app=$APP -o wide
+
+          echo "=== Pod describe (last 40 lines) ==="
+          kubectl describe pod -n ${{ env.NS }} -l app=$APP 2>&1 | tail -40
+
+          echo "=== Pod logs (last 30 lines, all containers) ==="
+          kubectl logs -n ${{ env.NS }} -l app=$APP --all-containers=true --tail=30 2>/dev/null || echo "(no logs yet)"
+
+          echo "=== Recent events ==="
+          kubectl get events -n ${{ env.NS }} --sort-by='.lastTimestamp' 2>/dev/null | tail -15
+
+          echo "=== Waiting for rollout ==="
+          kubectl rollout status deployment/$APP -n ${{ env.NS }} --timeout=240s
+          echo "✅ Dashboard deployed"
+
+      # ── Global Router ───────────────────────────────────────────
+      - name: Deploy global-router
+        if: steps.deploy_router.outputs.enabled == 'true'
+        run: |
+          APP=global-router
+          echo "╔══════════════════════════════════════════════════════╗"
+          echo "║  Deploying: $APP"
+          echo "╚══════════════════════════════════════════════════════╝"
+
+          echo "=== Pre-deploy pod status ==="
+          kubectl get pods -n ${{ env.NS }} -l app=$APP -o wide 2>/dev/null || echo "No existing pods"
+
+          echo "=== Force-deleting stuck pods ==="
+          kubectl delete pod -n ${{ env.NS }} -l app=$APP --force --grace-period=0 2>/dev/null || true
+          sleep 5
+
+          echo "=== Setting image ==="
+          kubectl set image deployment/$APP \
+            -n ${{ env.NS }} \
+            $APP=${{ env.REGISTRY }}/featuresignals-$APP:${{ steps.version.outputs.full }}
+
+          sleep 10
+
+          echo "=== Post-deploy pod status ==="
+          kubectl get pods -n ${{ env.NS }} -l app=$APP -o wide
+
+          echo "=== Pod describe (last 40 lines) ==="
+          kubectl describe pod -n ${{ env.NS }} -l app=$APP 2>&1 | tail -40
+
+          echo "=== Pod logs (last 30 lines, all containers) ==="
+          kubectl logs -n ${{ env.NS }} -l app=$APP --all-containers=true --tail=30 2>/dev/null || echo "(no logs yet)"
+
+          echo "=== Recent events ==="
+          kubectl get events -n ${{ env.NS }} --sort-by='.lastTimestamp' 2>/dev/null | tail -15
+
+          echo "=== Waiting for rollout ==="
+          kubectl rollout status deployment/$APP -n ${{ env.NS }} --timeout=240s
+          echo "✅ Global Router deployed"
+
+      # ── Summary ─────────────────────────────────────────────────
+      - name: Summary
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════════════════════╗"
+          echo "║           DEPLOY COMPLETE                                  ║"
+          echo "╚══════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "  Version:  ${{ steps.version.outputs.full }}"
+          echo "  Services: ${{ steps.resolve.outputs.services }}"
+          echo ""
+          kubectl get pods -n ${{ env.NS }} -o wide
+          echo ""
+          kubectl get deployments -n ${{ env.NS }}

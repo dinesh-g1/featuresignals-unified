@@ -1,0 +1,31 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: featuresignals-db
+  namespace: featuresignals
+spec:
+  instances: 1
+
+  storage:
+    size: 10Gi
+
+  bootstrap:
+    initdb:
+      database: featuresignals
+      owner: featuresignals
+
+  resources:
+    limits:
+      cpu: "1"
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+  monitoring:
+    enablePodMonitor: false
+
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "512MB"
