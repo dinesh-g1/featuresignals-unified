@@ -1,0 +1,517 @@
+[
+  {
+    "id": "action-create-flag",
+    "category": "action",
+    "title": "Create a flag",
+    "description": "Create a new feature flag",
+    "url": "/flags/new"
+  },
+  {
+    "id": "action-create-segment",
+    "category": "action",
+    "title": "Create a segment",
+    "description": "Create a reusable user segment",
+    "url": "/segments/new"
+  },
+  {
+    "id": "action-create-environment",
+    "category": "action",
+    "title": "Add an environment",
+    "description": "Add a new environment to a project",
+    "url": "/projects"
+  },
+  {
+    "id": "action-create-targeting-rule",
+    "category": "action",
+    "title": "Add a targeting rule",
+    "description": "Add a targeting rule to a flag",
+    "url": "/flags"
+  },
+  {
+    "id": "action-view-audit-log",
+    "category": "action",
+    "title": "View audit log",
+    "description": "Inspect flag and segment change history",
+    "url": "/audit-log"
+  },
+  {
+    "id": "doc-quickstart",
+    "category": "documentation",
+    "title": "Quickstart Guide",
+    "description": "Get started with FeatureSignals in 5 minutes",
+    "url": "/docs/getting-started/quickstart"
+  },
+  {
+    "id": "doc-migration",
+    "category": "documentation",
+    "title": "Migrating from LaunchDarkly",
+    "description": "Import flags, segments, and environments",
+    "url": "/docs/getting-started/migrate-from-launchdarkly"
+  },
+  {
+    "id": "doc-targeting",
+    "category": "documentation",
+    "title": "Targeting & Segments",
+    "description": "Define which users see which flag values",
+    "url": "/docs/core-concepts/targeting-and-segments"
+  },
+  {
+    "id": "doc-rollouts",
+    "category": "documentation",
+    "title": "Percentage Rollouts",
+    "description": "Gradual releases to a percentage of users",
+    "url": "/docs/core-concepts/percentage-rollouts"
+  },
+  {
+    "id": "doc-flags",
+    "category": "documentation",
+    "title": "Feature Flags",
+    "description": "Understanding feature flags and toggle categories",
+    "url": "/docs/core-concepts/feature-flags"
+  },
+  {
+    "id": "doc-api-reference-overview",
+    "category": "documentation",
+    "title": "API Overview",
+    "description": "Complete REST API reference for FeatureSignals — authentication, flag management, evaluation, webhooks, and team endpoints.",
+    "url": "/docs/api-reference/overview",
+    "headings": [
+      "Base URL",
+      "Authentication",
+      "API Groups",
+      "Pagination",
+      "Response Compression",
+      "Caching",
+      "Strict Request Validation",
+      "Error Responses",
+      "HTTP Status Codes",
+      "Rate Limiting"
+    ]
+  },
+  {
+    "id": "doc-core-concepts-feature-flags",
+    "category": "documentation",
+    "title": "Feature Flags",
+    "description": "Learn what feature flags are, how they work, and why they are essential for modern software development and continuous delivery.",
+    "url": "/docs/core-concepts/feature-flags",
+    "headings": [
+      "Flag Types",
+      "Flag Structure",
+      "Flag States",
+      "Evaluation Flow",
+      "Default Values",
+      "Best Practices"
+    ]
+  },
+  {
+    "id": "doc-core-concepts-percentage-rollouts",
+    "category": "documentation",
+    "title": "Percentage Rollouts",
+    "description": "Gradually roll out features to a percentage of users with consistent hashing for deterministic assignment.",
+    "url": "/docs/core-concepts/percentage-rollouts",
+    "headings": [
+      "How It Works",
+      "Setting a Rollout",
+      "Consistency Guarantees",
+      "Rollout Strategy",
+      "Rule-Level Rollouts"
+    ]
+  },
+  {
+    "id": "doc-core-concepts-targeting-and-segments",
+    "category": "documentation",
+    "title": "Targeting & Segments",
+    "description": "Target specific users with feature flags using segments, attributes, and targeting rules in FeatureSignals.",
+    "url": "/docs/core-concepts/targeting-and-segments",
+    "headings": [
+      "Targeting Rules",
+      "Segments",
+      "Evaluation Order"
+    ]
+  },
+  {
+    "id": "doc-getting-started-quickstart",
+    "category": "documentation",
+    "title": "Quickstart",
+    "description": "Get started with FeatureSignals in minutes. Install via Docker Compose, create your first feature flag, and evaluate it with any SDK.",
+    "url": "/docs/getting-started/quickstart",
+    "headings": [
+      "Prerequisites",
+      "1. Clone and Start",
+      "2. Create Your Account",
+      "3. Create a Feature Flag",
+      "4. Enable the Flag",
+      "5. Evaluate in Your App",
+      "6. Toggle and Observe"
+    ]
+  },
+  {
+    "id": "doc-glossary",
+    "category": "documentation",
+    "title": "Product Glossary",
+    "description": "Glossary of feature flag management terms used throughout the FeatureSignals documentation.",
+    "url": "/docs/glossary",
+    "headings": [
+      "Core Concepts",
+      "Platform Components",
+      "Plans & Billing",
+      "Roles & Permissions",
+      "Style Rules"
+    ]
+  },
+  {
+    "id": "doc-intro",
+    "category": "documentation",
+    "title": "FeatureSignals Documentation",
+    "description": "AI-powered feature flag management platform built for modern engineering teams. Ship features safely with targeted rollouts, run data-driven A/B experiments, and clean stale flags automatically.",
+    "url": "/docs/intro",
+    "headings": [
+      "Why FeatureSignals?",
+      "Quick Links",
+      "Architecture at a Glance",
+      "AI Strategy",
+      "License"
+    ]
+  },
+  {
+    "id": "doc-sdks-nodejs",
+    "category": "documentation",
+    "title": "Node.js SDK",
+    "description": "FeatureSignals Node.js SDK — installation, TypeScript support, polling, SSE, and OpenFeature provider.",
+    "url": "/docs/sdks/nodejs",
+    "headings": [
+      "Installation",
+      "Quick Start",
+      "Configuration",
+      "Evaluation Context",
+      "Variation Methods",
+      "Events",
+      "Readiness",
+      "Getting All Flags",
+      "Streaming",
+      "Shutdown",
+      "OpenFeature"
+    ]
+  },
+  {
+    "id": "doc-sdks-react",
+    "category": "documentation",
+    "title": "React SDK",
+    "description": "FeatureSignals React SDK — provider component, useFlag hook, SSE streaming, and OpenFeature support.",
+    "url": "/docs/sdks/react",
+    "headings": [
+      "Installation",
+      "Quick Start",
+      "Provider Props",
+      "Hooks",
+      "Streaming",
+      "Conditional Rendering",
+      "Dynamic User Key",
+      "OpenFeature"
+    ]
+  },
+  {
+    "id": "api-list-flags",
+    "category": "api",
+    "title": "GET /v1/flags",
+    "description": "List all feature flags in a project",
+    "url": "/docs/api-reference/v1/flags"
+  },
+  {
+    "id": "api-get-flag",
+    "category": "api",
+    "title": "GET /v1/flags/{key}",
+    "description": "Get a single flag by key",
+    "url": "/docs/api-reference/v1/flags"
+  },
+  {
+    "id": "api-create-flag",
+    "category": "api",
+    "title": "POST /v1/flags",
+    "description": "Create a new feature flag",
+    "url": "/docs/api-reference/v1/flags"
+  },
+  {
+    "id": "api-evaluate",
+    "category": "api",
+    "title": "POST /v1/evaluate",
+    "description": "Evaluate flags for a user context",
+    "url": "/docs/api-reference/v1/evaluate"
+  },
+  {
+    "id": "api-bulk-evaluate",
+    "category": "api",
+    "title": "POST /v1/evaluate/bulk",
+    "description": "Evaluate all flags for a user context at once",
+    "url": "/docs/api-reference/v1/evaluate"
+  },
+  {
+    "id": "api-list-segments",
+    "category": "api",
+    "title": "GET /v1/segments",
+    "description": "List all segments in a project",
+    "url": "/docs/api-reference/v1/segments"
+  },
+  {
+    "id": "api-create-segment",
+    "category": "api",
+    "title": "POST /v1/segments",
+    "description": "Create a reusable user segment",
+    "url": "/docs/api-reference/v1/segments"
+  },
+  {
+    "id": "api-targeting-rules",
+    "category": "api",
+    "title": "POST /v1/targeting-rules",
+    "description": "Create or update targeting rules for a flag",
+    "url": "/docs/api-reference/v1/targeting-rules"
+  },
+  {
+    "id": "api-audit-log",
+    "category": "api",
+    "title": "GET /v1/audit-log",
+    "description": "Query the audit log for change history",
+    "url": "/docs/api-reference/v1/audit-log"
+  },
+  {
+    "id": "product-flags",
+    "category": "product",
+    "title": "Feature Flags",
+    "description": "Manage your feature flags",
+    "url": "/flags"
+  },
+  {
+    "id": "product-segments",
+    "category": "product",
+    "title": "Segments",
+    "description": "Reusable user segments for targeting",
+    "url": "/segments"
+  },
+  {
+    "id": "product-analytics",
+    "category": "product",
+    "title": "Analytics",
+    "description": "Flag evaluation metrics and insights",
+    "url": "/analytics"
+  },
+  {
+    "id": "product-pricing",
+    "category": "product",
+    "title": "Pricing",
+    "description": "Free, Pro, and Enterprise plans",
+    "url": "/pricing"
+  },
+  {
+    "id": "product-dashboard",
+    "category": "product",
+    "title": "Dashboard",
+    "description": "Your feature flag dashboard",
+    "url": "/projects"
+  },
+  {
+    "id": "product-audit-log",
+    "category": "product",
+    "title": "Audit Log",
+    "description": "Full change history for compliance",
+    "url": "/audit-log"
+  },
+  {
+    "id": "product-settings",
+    "category": "product",
+    "title": "Settings",
+    "description": "Organization and project settings",
+    "url": "/settings"
+  },
+  {
+    "id": "glossary-flag",
+    "category": "glossary",
+    "title": "Flag",
+    "description": "A feature flag is a conditional toggle that lets you control who sees a feature without deploying code.",
+    "url": "/docs/glossary#flag",
+    "fragment": "flag"
+  },
+  {
+    "id": "glossary-segment",
+    "category": "glossary",
+    "title": "Segment",
+    "description": "A segment is a reusable group of users defined by attribute rules (e.g., 'beta testers' or 'enterprise customers').",
+    "url": "/docs/glossary#segment",
+    "fragment": "segment"
+  },
+  {
+    "id": "glossary-environment",
+    "category": "glossary",
+    "title": "Environment",
+    "description": "An environment is an isolated context for flag states (e.g., Development, Staging, Production).",
+    "url": "/docs/glossary#environment",
+    "fragment": "environment"
+  },
+  {
+    "id": "glossary-project",
+    "category": "glossary",
+    "title": "Project",
+    "description": "A project groups related flags, segments, and environments together — typically one per application or service.",
+    "url": "/docs/glossary#project",
+    "fragment": "project"
+  },
+  {
+    "id": "glossary-targeting-rule",
+    "category": "glossary",
+    "title": "Targeting Rule",
+    "description": "A targeting rule defines who gets which flag value based on user attributes (e.g., 'email contains @test.com → true').",
+    "url": "/docs/glossary#targeting-rule",
+    "fragment": "targeting-rule"
+  },
+  {
+    "id": "glossary-percentage-rollout",
+    "category": "glossary",
+    "title": "Percentage Rollout",
+    "description": "A percentage rollout gradually exposes a flag to a random percentage of users (0–100%).",
+    "url": "/docs/glossary#percentage-rollout",
+    "fragment": "percentage-rollout"
+  },
+  {
+    "id": "glossary-release-toggle",
+    "category": "glossary",
+    "title": "Release Toggle",
+    "description": "A release toggle decouples deployment from release — ship code dark and enable it when ready.",
+    "url": "/docs/glossary#release-toggle",
+    "fragment": "release-toggle"
+  },
+  {
+    "id": "glossary-experiment-toggle",
+    "category": "glossary",
+    "title": "Experiment Toggle",
+    "description": "An experiment toggle powers A/B tests by randomly assigning users to variants and measuring outcomes.",
+    "url": "/docs/glossary#experiment-toggle",
+    "fragment": "experiment-toggle"
+  },
+  {
+    "id": "glossary-ops-toggle",
+    "category": "glossary",
+    "title": "Ops Toggle",
+    "description": "An ops toggle controls operational behavior — maintenance mode, feature kill switches, or rate limiting.",
+    "url": "/docs/glossary#ops-toggle",
+    "fragment": "ops-toggle"
+  },
+  {
+    "id": "glossary-permission-toggle",
+    "category": "glossary",
+    "title": "Permission Toggle",
+    "description": "A permission toggle gates features based on user tier, plan, or role — like 'admin-only preview'.",
+    "url": "/docs/glossary#permission-toggle",
+    "fragment": "permission-toggle"
+  },
+  {
+    "id": "glossary-active",
+    "category": "glossary",
+    "title": "Active",
+    "description": "The flag is live and actively evaluating. This is the normal operating state.",
+    "url": "/docs/glossary#active",
+    "fragment": "active"
+  },
+  {
+    "id": "glossary-rolled-out",
+    "category": "glossary",
+    "title": "Rolled Out",
+    "description": "The flag has been fully rolled out to 100% and is awaiting cleanup.",
+    "url": "/docs/glossary#rolled-out",
+    "fragment": "rolled-out"
+  },
+  {
+    "id": "glossary-deprecated",
+    "category": "glossary",
+    "title": "Deprecated",
+    "description": "The flag is marked for removal. It may still evaluate but should not be used in new code.",
+    "url": "/docs/glossary#deprecated",
+    "fragment": "deprecated"
+  },
+  {
+    "id": "glossary-archived",
+    "category": "glossary",
+    "title": "Archived",
+    "description": "The flag has been removed from active use and is preserved for audit purposes only.",
+    "url": "/docs/glossary#archived",
+    "fragment": "archived"
+  },
+  {
+    "id": "glossary-api-key",
+    "category": "glossary",
+    "title": "API Key",
+    "description": "An API key authenticates SDK requests. Server-side keys have full access; client-side keys are environment-scoped.",
+    "url": "/docs/glossary#api-key",
+    "fragment": "api-key"
+  },
+  {
+    "id": "glossary-webhook",
+    "category": "glossary",
+    "title": "Webhook",
+    "description": "A webhook sends HTTP callbacks to your server when flag states change — keeping your systems in sync.",
+    "url": "/docs/glossary#webhook",
+    "fragment": "webhook"
+  },
+  {
+    "id": "glossary-audit-log",
+    "category": "glossary",
+    "title": "Audit Log",
+    "description": "The audit log records every change to flags, segments, and settings — who did what, when, and from where.",
+    "url": "/docs/glossary#audit-log",
+    "fragment": "audit-log"
+  },
+  {
+    "id": "glossary-toggle-category",
+    "category": "glossary",
+    "title": "Toggle Category",
+    "description": "The type of toggle: Release (ship dark), Experiment (A/B test), Ops (operational), or Permission (access control).",
+    "url": "/docs/glossary#toggle-category",
+    "fragment": "toggle-category"
+  },
+  {
+    "id": "glossary-condition",
+    "category": "glossary",
+    "title": "Condition",
+    "description": "A condition matches users based on attributes (e.g., 'country equals US' or 'plan in [pro, enterprise]').",
+    "url": "/docs/glossary#condition",
+    "fragment": "condition"
+  },
+  {
+    "id": "glossary-variant",
+    "category": "glossary",
+    "title": "Variant",
+    "description": "A variant is a named value in a multi-armed experiment (e.g., 'control', 'treatment-a', 'treatment-b').",
+    "url": "/docs/glossary#variant",
+    "fragment": "variant"
+  },
+  {
+    "id": "glossary-sdk",
+    "category": "glossary",
+    "title": "SDK",
+    "description": "The FeatureSignals SDK integrates with your application to evaluate flags at runtime.",
+    "url": "/docs/glossary#sdk",
+    "fragment": "sdk"
+  },
+  {
+    "id": "glossary-evaluation",
+    "category": "glossary",
+    "title": "Evaluation",
+    "description": "Evaluation is the process of determining which flag value to serve for a given user at runtime.",
+    "url": "/docs/glossary#evaluation",
+    "fragment": "evaluation"
+  },
+  {
+    "id": "glossary-janitor",
+    "category": "glossary",
+    "title": "Janitor",
+    "description": "Janitor is FeatureSignals' automated stale flag detection and cleanup system.",
+    "url": "/docs/glossary#janitor",
+    "fragment": "janitor"
+  },
+  {
+    "id": "glossary-kill-switch",
+    "category": "glossary",
+    "title": "Kill Switch",
+    "description": "A kill switch is an ops toggle that can instantly disable a feature in production during an incident.",
+    "url": "/docs/glossary#kill-switch",
+    "fragment": "kill-switch"
+  }
+]

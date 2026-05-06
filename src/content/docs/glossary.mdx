@@ -1,0 +1,64 @@
+---
+title: "Product Glossary"
+description: "Glossary of feature flag management terms used throughout the FeatureSignals documentation."
+ai_difficulty: beginner
+ai_estimated_minutes: 5
+ai_tags: [glossary, reference, terminology]
+sdks_relevant: [node, python, java, go, dotnet, ruby, react, vue]
+next_steps: [/docs/intro, /docs/getting-started/quickstart]
+---
+
+This glossary defines the canonical terminology used across **all** FeatureSignals surfaces — website, documentation, Flag Engine, SDKs, APIs, and lifecycle emails.
+
+## Core Concepts
+
+| Term | Definition |
+|------|-----------|
+| **Workspace** | The top-level tenant boundary (maps to `Organization` in the API). Contains all projects, members, and billing for a single team or company. |
+| **Project** | A distinct application, service, or product within a workspace. Groups flags, segments, and environments. |
+| **Environment** | A deployment stage within a project (e.g., development, staging, production). Each environment has its own flag states and API keys. |
+| **Flag** | A feature control that determines behavior at runtime. Supports types: boolean, string, number, JSON, and experiment (A/B). |
+| **Flag State** | The per-environment configuration of a flag: enabled/disabled status, targeting rules, rollout percentage, variants, and schedule. |
+| **Segment** | A reusable audience definition based on target attributes. Segments can be referenced across multiple flags' targeting rules. |
+| **Rule** | A targeting condition within a flag's environment state. Rules specify which segment or attribute conditions determine the flag's value for matching targets. |
+| **Rollout** | Progressive percentage-based exposure of a flag to targets, using consistent hashing for deterministic assignment. |
+| **Kill Switch** | Emergency disable action that turns a flag off immediately across the targeted environment. |
+| **Variant** | One of multiple possible values a flag can return (for string, number, JSON, or experiment flag types). |
+| **API Key** | A per-environment credential used by SDKs to authenticate evaluation requests. Comes in two types: `server` (secret, for backend SDKs) and `client` (public, for frontend SDKs). |
+| **Evaluation** | The process of determining a flag's value for a specific target in a specific environment. |
+| **Target** | The subject being evaluated — typically a user, device, session, or service identified by a `key` (unique identifier) and `attributes` (properties for targeting). |
+
+## Platform Components
+
+| Term | Definition |
+|------|-----------|
+| **Flag Engine** | The FeatureSignals web application where teams manage flags, segments, and settings. |
+| **SDK** | A client library that applications integrate to evaluate flags locally. Available for Go, Node.js, Python, Java, .NET, Ruby, React, and Vue. |
+| **Relay Proxy** | An edge caching layer that sits between SDKs and the FeatureSignals API, reducing latency and providing resilience. |
+| **API Playground** | The interactive API documentation where developers can test API calls directly in the browser. |
+
+## Plans & Billing
+
+| Term | Definition |
+|------|-----------|
+| **Free** | The entry plan: unlimited flags and evaluations, limited to 1 project, 2 environments, 3 team members. |
+| **Pro** | The team plan: unlimited everything, plus governance (RBAC, approvals, audit), automation (webhooks, scheduling), and priority support. |
+| **Enterprise** | The enterprise plan: everything in Pro plus SSO, SCIM, IP allowlist, custom roles, dedicated support, and deployment assistance. |
+| **Trial** | A 14-day free period with full Pro features. No credit card required to start. |
+
+## Roles & Permissions
+
+| Term | Definition |
+|------|-----------|
+| **Owner** | Full access including billing, team management, and workspace deletion. One per workspace. |
+| **Admin** | Full access except billing. Can manage team members, projects, and all flags. |
+| **Developer** | Can create and manage flags, segments, and environments. Cannot manage team or billing. Subject to environment permissions. |
+| **Viewer** | Read-only access. Can view flags, segments, audit logs, and metrics but cannot make changes. |
+
+## Style Rules
+
+1. **Product name**: Always "FeatureSignals" (one word, capital F and S).
+2. **Management UI**: Use "Flag Engine" for the FeatureSignals product.
+3. **Voice**: Technical, confident, direct. Never cute, corporate, or unnecessarily casual.
+4. **Numbers**: Use digits for all numbers in UI and data contexts.
+5. **Dates**: Always display in the user's locale format. Store and transmit as UTC ISO 8601.
